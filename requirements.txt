@@ -1,7 +1,6 @@
 streamlit
 PyPDF2
 langchain
-os
 langchain_google_genai
 google-generativeai
 langchain_community
