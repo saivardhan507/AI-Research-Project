@@ -167,7 +167,7 @@ def main():
     st.markdown(
         """
         <div style="position: fixed; bottom: 0; left: 0; width: 100%; background-color: #0E1117; padding: 15px; text-align: center;">
-            © <a href="https://github.com/saivardhan507" target="_blank">Connect Here </a> | Made with ❤️ 🤖
+             © <a href="https://wa.me/qr/FIEHCYZKAOBED1" target="_blank">For more info Connect Here </a> | Mentor: Dr.V.Radhika
         </div>
         """,
         unsafe_allow_html=True
