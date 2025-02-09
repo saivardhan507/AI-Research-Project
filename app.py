@@ -162,12 +162,12 @@ def main():
 
         st.write("---")
         st.image("img/gkj.jpg")
-        st.write("CREATED BY @ VNRJIET STUDENTS")
+        st.markdown('<a href="https://vnrvjiet.ac.in/" target="_blank">CREATED BY @ VNRJIET STUDENTS</a>', unsafe_allow_html=True)
 
     st.markdown(
         """
         <div style="position: fixed; bottom: 0; left: 0; width: 100%; background-color: #0E1117; padding: 15px; text-align: center;">
-             © <a href="https://wa.me/qr/FIEHCYZKAOBED1" target="_blank">For more info Connect Here </a> | Mentor: Dr.V.Radhika
+             © <a href="https://wa.me/qr/FIEHCYZKAOBED1" target="_blank">For more info Connect Here </a> | Project Guide: Dr.V.Radhika
         </div>
         """,
         unsafe_allow_html=True
