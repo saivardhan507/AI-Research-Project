@@ -8,3 +8,5 @@ faiss-cpu
 openai
 requests
 python-dotenv
+google-api-core
+unstructured 
