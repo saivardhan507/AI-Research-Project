@@ -11,7 +11,7 @@ import shutil  # For checking Tesseract installation
 import time
 import requests
 import docx  # python-docx
-import pytesseract  # for OCR
+import pytesseract  # pytesseract for OCR
 import google.generativeai as genai
 from PyPDF2 import PdfReader
 from io import BytesIO
@@ -31,16 +31,12 @@ from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 
-# Load environment variables from .env if present
+# Optionally set the Tesseract command if provided via an environment variable.
+if "TESSERACT_PATH" in os.environ:
+    pytesseract.pytesseract.tesseract_cmd = os.environ["TESSERACT_PATH"]
+
+# Load environment variables and configure API key
 load_dotenv()
-
-# Set Tesseract path if available from environment variable.
-# In Streamlit Cloud, set this in the secrets via the dashboard or .streamlit/secrets.toml
-tesseract_path = os.getenv("TESSERACT_PATH")
-if tesseract_path:
-    pytesseract.pytesseract.tesseract_cmd = tesseract_path
-
-# Configure the Google API key for generative AI
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # Initialize conversation history in session_state if not present
@@ -52,19 +48,22 @@ if "question_answer_history" not in st.session_state:
 def extract_text_from_image(image):
     """
     Uses pytesseract to extract text from a PIL image.
+    Checks if Tesseract is installed before running OCR.
     """
     if shutil.which("tesseract") is None:
         st.error("Tesseract is not installed or not in your PATH. Please install Tesseract OCR and ensure it's accessible. You can set its path via the TESSERACT_PATH environment variable.")
         return ""
     try:
-        return pytesseract.image_to_string(image)
+        ocr_text = pytesseract.image_to_string(image)
+        return ocr_text
     except Exception as e:
         st.error(f"OCR failed: {e}")
         return ""
 
 def get_pdf_text(pdf_docs):
     """
-    Extracts text from PDF files. If text extraction fails, it converts pages to images and applies OCR.
+    Extracts text from PDF files. For each page, if text extraction fails,
+    the page is converted to an image and OCR is applied.
     """
     text = ""
     for pdf in pdf_docs:
@@ -77,6 +76,7 @@ def get_pdf_text(pdf_docs):
                 if page_text and page_text.strip():
                     text += page_text
                 else:
+                    # Convert page to image and apply OCR
                     try:
                         images = convert_from_bytes(pdf_bytes, first_page=page_num+1, last_page=page_num+1)
                         for image in images:
@@ -92,14 +92,17 @@ def get_pdf_text(pdf_docs):
 
 def get_docx_text(docx_docs):
     """
-    Extracts text from Word documents (.docx), including OCR on embedded images.
+    Extracts text from Word documents (.docx).
+    Extracts text from paragraphs and uses OCR on any embedded images.
     """
     text = ""
     for docx_file in docx_docs:
         try:
             document = docx.Document(docx_file)
+            # Extract text from paragraphs
             for para in document.paragraphs:
                 text += para.text + "\n"
+            # Check for images in the document's relationships and perform OCR
             for rel in document.part._rels:
                 rel_part = document.part._rels[rel]
                 if "image" in rel_part.target_ref:
@@ -126,16 +129,18 @@ def get_url_text_selenium(url):
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
+        # You can add further options if needed (e.g., disable logging)
         driver = webdriver.Chrome(options=chrome_options)
         driver.get(url)
-        time.sleep(5)  # Adjust if necessary
+        time.sleep(5)  # Adjust the sleep time if necessary
         html_content = driver.page_source
         driver.quit()
 
         soup = BeautifulSoup(html_content, "html.parser")
         for script in soup(["script", "style"]):
             script.extract()
-        return soup.get_text(separator=" ", strip=True)
+        visible_text = soup.get_text(separator=" ", strip=True)
+        return visible_text
     except Exception as e:
         st.error(f"Selenium failed for {url}: {e}")
         return ""
@@ -143,7 +148,7 @@ def get_url_text_selenium(url):
 def get_url_text(urls):
     """
     Processes URLs that may point to PDFs, images, or standard webpages.
-    Uses extended headers for standard requests and falls back to Selenium if needed.
+    Uses extended headers for a standard request and falls back to Selenium if necessary.
     """
     text = ""
     headers = {
@@ -167,6 +172,7 @@ def get_url_text(urls):
                     st.error(f"Failed to extract text from {url} using Selenium.")
                 continue
 
+            # Process PDF URLs
             if url.lower().endswith(".pdf"):
                 pdf_bytes = response.content
                 try:
@@ -188,6 +194,7 @@ def get_url_text(urls):
                 except Exception as e:
                     st.error(f"Failed to process PDF from {url}: {e}")
 
+            # Process image URLs
             elif url.lower().endswith((".jpg", ".jpeg", ".png")):
                 try:
                     image_bytes = response.content
@@ -199,13 +206,15 @@ def get_url_text(urls):
                 except Exception as e:
                     st.error(f"Failed to process image URL {url}: {e}")
 
+            # Process general webpages
             else:
                 try:
                     html_content = response.text
                     soup = BeautifulSoup(html_content, "html.parser")
                     for script in soup(["script", "style"]):
                         script.extract()
-                    text += soup.get_text(separator=" ", strip=True)
+                    visible_text = soup.get_text(separator=" ", strip=True)
+                    text += visible_text
                 except Exception as e:
                     st.error(f"Failed to process webpage URL {url}: {e}")
         except Exception as e:
@@ -215,7 +224,8 @@ def get_url_text(urls):
 def get_text_chunks(text):
     """Splits text into manageable chunks."""
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=50000, chunk_overlap=1000)
-    return text_splitter.split_text(text)
+    chunks = text_splitter.split_text(text)
+    return chunks
 
 def get_vector_store(text_chunks):
     """Creates and saves a FAISS vector store from text chunks."""
@@ -228,13 +238,13 @@ def get_conversational_chain():
     prompt_template = """
     You are provided with the following context and a question. Please craft a thorough, well-organized answer that covers every relevant detail. Your response should be at least 300 words long and include tables, bullet points, diagrams, or other structured formats as needed to enhance clarity. If the provided context does not cover some aspects of the question, please supplement your answer with credible information fetched from Google resources. 
 
-    Your answer must:
-    - Explain the topic comprehensively, covering all pertinent aspects.
-    - Include tables or structured data to summarize key information, where applicable.
-    - Use clear headings, subheadings, bullet points, or numbered lists to organize your explanation.
-    - Elaborate with in-depth details, examples, and analysis.
-    - Ensure that the explanation is logically structured and easy to follow.
-        
+Your answer must:
+- Explain the topic comprehensively, covering all pertinent aspects.
+- Include tables or structured data to summarize key information, where applicable.
+- Use clear headings, subheadings, bullet points, or numbered lists to organize your explanation.
+- Elaborate with in-depth details, examples, and analysis.
+- Ensure that the explanation is logically structured and easy to follow.
+    
     Context:
     {context}
     
@@ -245,7 +255,8 @@ def get_conversational_chain():
     """
     model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
-    return load_qa_chain(model, chain_type="stuff", prompt=prompt)
+    chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
+    return chain
 
 def search_google(query, retries=5):
     """Fetches a summary from Google if the context is insufficient."""
@@ -294,6 +305,7 @@ def user_input(user_question, target_language):
 
     translated_answer = translate_text(response["output_text"], target_language)
     
+    # Save the conversation in session state
     st.session_state.question_answer_history.append({
         "question": user_question,
         "answer": translated_answer
@@ -305,6 +317,7 @@ def user_input(user_question, target_language):
 # ------------------ Main App with Enhanced UI ------------------
 
 def main():
+    # Inject custom CSS for modern visuals and conversation history styling
     st.markdown("""
     <style>
     body {
@@ -342,8 +355,10 @@ def main():
     </style>
     """, unsafe_allow_html=True)
 
+    # Header
     st.markdown('<div class="header">📚 Personal AI Research Assistant 🤖</div>', unsafe_allow_html=True)
 
+    # Main Section: Language selection and question input
     language = st.selectbox("Select Language", (
         "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil", "Gujarati", "Marathi", 
         "Punjabi", "Kannada", "Malayalam", "Odia", "Assamese", "Urdu", "Konkani", "Maithili", "Santali", "Sindhi", 
@@ -369,6 +384,7 @@ def main():
             user_input(user_question, language)
             st.write("---")
 
+    # Display conversation history
     if st.session_state.question_answer_history:
         st.markdown('<h2 style="text-align: center; margin-bottom: 20px;">Conversation History📜</h2>', unsafe_allow_html=True)
         for pair in st.session_state.question_answer_history:
@@ -380,10 +396,12 @@ def main():
             '''
             st.markdown(conversation_html, unsafe_allow_html=True)
 
+    # ------------------ Sidebar Layout ------------------
     with st.sidebar:
         st.image("img/Robot.jpg")
         st.markdown("---")
         st.markdown('<div class="sidebar-section"><h3>📁 Documents Section</h3></div>', unsafe_allow_html=True)
+        # Uploader: Accept PDF and DOCX files
         uploaded_files = st.file_uploader("Upload your PDF or Word documents", accept_multiple_files=True, type=["pdf", "docx"])
         if st.button("Submit & Process Documents"):
             if uploaded_files:
@@ -429,6 +447,7 @@ def main():
         st.image("img/gkj.jpg")
         st.markdown('<a href="https://vnrvjiet.ac.in/" target="_blank">CREATED BY @ VNRJIET STUDENTS</a>', unsafe_allow_html=True)
 
+    # ------------------ Footer ------------------
     with st.sidebar:
         st.markdown(
         """
