@@ -10,3 +10,8 @@ requests
 python-dotenv
 google-api-core
 unstructured 
+python-docx
+pytesseract
+Pillow
+pdf2image
+selenium
