@@ -7,22 +7,19 @@ st.set_page_config(
 )
 
 import os
-import shutil  # For checking Tesseract installation
+import shutil
 import time
 import requests
-import docx  # python-docx
-import pytesseract  # pytesseract for OCR
+import docx
+import pytesseract
 import google.generativeai as genai
 from PyPDF2 import PdfReader
 from io import BytesIO
 from PIL import Image
-from pdf2image import convert_from_bytes  # For PDF page conversion
-from bs4 import BeautifulSoup  # For HTML parsing
-
-# Additional imports for Selenium fallback
+from pdf2image import convert_from_bytes
+from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -30,28 +27,76 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
+import speech_recognition as sr
+from gtts import gTTS
+import base64
 
-# Optionally set the Tesseract command if provided via an environment variable.
+# ------------------ Environment Setup ------------------
+load_dotenv()
 if "TESSERACT_PATH" in os.environ:
     pytesseract.pytesseract.tesseract_cmd = os.environ["TESSERACT_PATH"]
-
-# Load environment variables and configure API key
-load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # Initialize conversation history in session_state if not present
 if "question_answer_history" not in st.session_state:
     st.session_state.question_answer_history = []
+# Initialize transcribed text storage
+if "transcribed_text" not in st.session_state:
+    st.session_state.transcribed_text = ""
 
-# ------------------ Helper Functions ------------------
+# ------------------ Helper Functions for Speech ------------------
+
+# Language mapping for speech recognition and TTS (add more if needed)
+language_map = {
+    "English": "en",
+    "Hindi": "hi",
+    "Telugu": "te",
+    "Tamil": "ta",
+    "Spanish": "es",
+    "French": "fr"
+}
+
+def speech_to_text(language):
+    """Captures speech input and returns transcribed text in original language"""
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+        st.info("Speak now...")
+        try:
+            audio = r.listen(source, timeout=10)
+            lang_code = language_map.get(language, "en-IN")
+            text = r.recognize_google(audio, language=lang_code)
+            return text
+        except sr.WaitTimeoutError:
+            st.error("No speech detected")
+            return ""
+        except Exception as e:
+            st.error(f"Speech recognition error: {e}")
+            return ""
+
+def text_to_speech(text, language):
+    """Converts text to audio and plays it in the browser"""
+    try:
+        lang_code = language_map.get(language, "en")
+        tts = gTTS(text=text, lang=lang_code, slow=False)
+        audio_file = BytesIO()
+        tts.write_to_fp(audio_file)
+        audio_file.seek(0)
+        # Encode audio for HTML playback
+        audio_base64 = base64.b64encode(audio_file.read()).decode()
+        audio_html = f'''
+            <audio controls autoplay style="width: 100%;">
+                <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+            </audio>
+        '''
+        st.markdown(audio_html, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Text-to-speech failed: {e}")
+
+# ------------------ Helper Functions for Document & URL Processing ------------------
 
 def extract_text_from_image(image):
-    """
-    Uses pytesseract to extract text from a PIL image.
-    Checks if Tesseract is installed before running OCR.
-    """
     if shutil.which("tesseract") is None:
-        st.error("Tesseract is not installed or not in your PATH. Please install Tesseract OCR and ensure it's accessible. You can set its path via the TESSERACT_PATH environment variable.")
+        st.error("Tesseract is not installed or not in your PATH. Please install Tesseract OCR and ensure it's accessible.")
         return ""
     try:
         ocr_text = pytesseract.image_to_string(image)
@@ -61,10 +106,6 @@ def extract_text_from_image(image):
         return ""
 
 def get_pdf_text(pdf_docs):
-    """
-    Extracts text from PDF files. For each page, if text extraction fails,
-    the page is converted to an image and OCR is applied.
-    """
     text = ""
     for pdf in pdf_docs:
         try:
@@ -76,7 +117,6 @@ def get_pdf_text(pdf_docs):
                 if page_text and page_text.strip():
                     text += page_text
                 else:
-                    # Convert page to image and apply OCR
                     try:
                         images = convert_from_bytes(pdf_bytes, first_page=page_num+1, last_page=page_num+1)
                         for image in images:
@@ -91,18 +131,12 @@ def get_pdf_text(pdf_docs):
     return text
 
 def get_docx_text(docx_docs):
-    """
-    Extracts text from Word documents (.docx).
-    Extracts text from paragraphs and uses OCR on any embedded images.
-    """
     text = ""
     for docx_file in docx_docs:
         try:
             document = docx.Document(docx_file)
-            # Extract text from paragraphs
             for para in document.paragraphs:
                 text += para.text + "\n"
-            # Check for images in the document's relationships and perform OCR
             for rel in document.part._rels:
                 rel_part = document.part._rels[rel]
                 if "image" in rel_part.target_ref:
@@ -120,22 +154,16 @@ def get_docx_text(docx_docs):
     return text
 
 def get_url_text_selenium(url):
-    """
-    Uses Selenium with a headless browser to fetch and render a URL.
-    Returns the extracted visible text.
-    """
     try:
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
-        # You can add further options if needed (e.g., disable logging)
         driver = webdriver.Chrome(options=chrome_options)
         driver.get(url)
-        time.sleep(5)  # Adjust the sleep time if necessary
+        time.sleep(5)
         html_content = driver.page_source
         driver.quit()
-
         soup = BeautifulSoup(html_content, "html.parser")
         for script in soup(["script", "style"]):
             script.extract()
@@ -146,10 +174,6 @@ def get_url_text_selenium(url):
         return ""
 
 def get_url_text(urls):
-    """
-    Processes URLs that may point to PDFs, images, or standard webpages.
-    Uses extended headers for a standard request and falls back to Selenium if necessary.
-    """
     text = ""
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:104.0) Gecko/20100101 Firefox/104.0",
@@ -171,8 +195,6 @@ def get_url_text(urls):
                 else:
                     st.error(f"Failed to extract text from {url} using Selenium.")
                 continue
-
-            # Process PDF URLs
             if url.lower().endswith(".pdf"):
                 pdf_bytes = response.content
                 try:
@@ -193,8 +215,6 @@ def get_url_text(urls):
                                 st.error(f"OCR failed for URL PDF page {page_num+1}: {e}")
                 except Exception as e:
                     st.error(f"Failed to process PDF from {url}: {e}")
-
-            # Process image URLs
             elif url.lower().endswith((".jpg", ".jpeg", ".png")):
                 try:
                     image_bytes = response.content
@@ -205,8 +225,6 @@ def get_url_text(urls):
                     text += ocr_text
                 except Exception as e:
                     st.error(f"Failed to process image URL {url}: {e}")
-
-            # Process general webpages
             else:
                 try:
                     html_content = response.text
@@ -222,19 +240,16 @@ def get_url_text(urls):
     return text
 
 def get_text_chunks(text):
-    """Splits text into manageable chunks."""
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=50000, chunk_overlap=1000)
     chunks = text_splitter.split_text(text)
     return chunks
 
 def get_vector_store(text_chunks):
-    """Creates and saves a FAISS vector store from text chunks."""
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
 
 def get_conversational_chain():
-    """Creates the conversational chain with a custom prompt."""
     prompt_template = """
     You are provided with the following context and a question. Please craft a thorough, well-organized answer that covers every relevant detail. Your response should be at least 300 words long and include tables, bullet points, diagrams, or other structured formats as needed to enhance clarity. If the provided context does not cover some aspects of the question, please supplement your answer with credible information fetched from Google resources. 
 
@@ -259,30 +274,25 @@ Your answer must:
     return chain
 
 def search_google(query, retries=5):
-    """Fetches a summary from Google if the context is insufficient."""
     model = genai.GenerativeModel('gemini-pro')
     for attempt in range(retries):
         try:
             response = model.generate_content(f"Give me a summary of : {query}")
             return response.text
-        except google.api_core.exceptions.ResourceExhausted:
+        except Exception as e:
             if attempt < retries - 1:
                 time.sleep((2 ** attempt) + 1)
             else:
-                raise
-        except Exception as e:
-            st.error(f"Error during Google search: {e}")
-            return "Could not find information on Google."
+                st.error(f"Error during Google search: {e}")
+                return "Could not find information on Google."
     return "Could not find information on Google."
 
 def translate_text(text, target_language):
-    """Translates text to the target language using Google Generative AI."""
     model = genai.GenerativeModel('gemini-pro')
     response = model.generate_content(f"Translate the following text to {target_language}:\n\n{text}")
     return response.text
 
 def user_input(user_question, target_language):
-    """Processes the user question and returns an answer after text extraction and translation."""
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
     try:
         new_db = FAISS.load_local(os.path.join(os.getcwd(), "faiss_index"), embeddings,
@@ -305,7 +315,6 @@ def user_input(user_question, target_language):
 
     translated_answer = translate_text(response["output_text"], target_language)
     
-    # Save the conversation in session state
     st.session_state.question_answer_history.append({
         "question": user_question,
         "answer": translated_answer
@@ -317,7 +326,6 @@ def user_input(user_question, target_language):
 # ------------------ Main App with Enhanced UI ------------------
 
 def main():
-    # Inject custom CSS for modern visuals and conversation history styling
     st.markdown("""
     <style>
     body {
@@ -355,36 +363,70 @@ def main():
     </style>
     """, unsafe_allow_html=True)
 
-    # Header
     st.markdown('<div class="header">📚 Personal AI Research Assistant 🤖</div>', unsafe_allow_html=True)
 
-    # Main Section: Language selection and question input
-    language = st.selectbox("Select Language", (
-        "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil", "Gujarati", "Marathi", 
-        "Punjabi", "Kannada", "Malayalam", "Odia", "Assamese", "Urdu", "Konkani", "Maithili", "Santali", "Sindhi", 
-        "Nepali", "Bodo", "Dogri", "Kashmiri", "Manipuri", "Sanskrit", "Japanese", "Korean", "Italian", "Portuguese", 
-        "Russian", "Arabic", "Dutch", "Greek", "Swedish", "Turkish", "Vietnamese", "Polish", "Bengali", "Afrikaans", 
-        "Albanian", "Armenian", "Azerbaijani", "Basque", "Belarusian", "Bosnian", "Bulgarian", "Catalan", "Croatian", 
-        "Czech", "Danish", "Estonian", "Finnish", "Georgian", "Hebrew", "Hungarian", "Icelandic", "Indonesian", "Irish", 
-        "Latvian", "Lithuanian", "Macedonian", "Malagasy", "Maltese", "Mongolian", "Montenegrin", "Norwegian", 
-        "Pashto", "Persian", "Romanian", "Serbian", "Slovak", "Slovenian", "Somali", "Swahili", "Tajik", "Tatar", 
-        "Thai", "Tibetan", "Turkmen", "Ukrainian", "Uzbek", "Welsh", "Yoruba", "Zulu", "Amharic", "Chechen", 
-        "Chichewa", "Esperanto", "Fijian", "Fula", "Galician", "Hausa", "Hmong", "Igbo", "Inuktitut", "Javanese", 
-        "Kinyarwanda", "Kirundi", "Kurdish", "Lao", "Luganda", "Luxembourgish", "Maldivian", "Marshallese", "Nauru", 
-        "Navajo", "Oriya", "Palauan", "Quechua", "Samoan", "Sango", "Serer", "Shona", "Sotho", "Tagalog", "Tahitian", 
-        "Tigrinya", "Tonga", "Tswana", "Tuvaluan", "Wallisian", "Xhosa", "Akan", "Bambara", "Bashkir", "Bislama", 
-        "Chuvash", "Divehi", "Dzongkha", "Ewe", "Faroese", "Gaelic", "Greenlandic", "Haitian", "Herero", "Kashubian", 
-        "Kikuyu", "Lingala", "Lozi", "Makonde", "Mandingo", "Ndonga", "Nuosu", "Nyanja", "Nyamwezi", "Oromo", 
-        "Rohingya", "Saraiki", "Shan", "Silesian", "Sinhala", "Sorani", "Tsonga", "Wolof", "Zaza"
-    ))
-
-    user_question = st.text_input("Ask a Question from the uploaded documents .. ✍️📝")
+    # Main Section: Input Mode Selection, Language, and Question Input
+    input_mode = st.radio("Input Mode:", ["Type", "Speak"], horizontal=True)
+    
+    if input_mode == "Speak":
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            language = st.selectbox("Select Language", (
+                "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil", "Gujarati", "Marathi", 
+                "Punjabi", "Kannada", "Malayalam", "Odia", "Assamese", "Urdu", "Konkani", "Maithili", "Santali", "Sindhi", 
+                "Nepali", "Bodo", "Dogri", "Kashmiri", "Manipuri", "Sanskrit", "Japanese", "Korean", "Italian", "Portuguese", 
+                "Russian", "Arabic", "Dutch", "Greek", "Swedish", "Turkish", "Vietnamese", "Polish", "Bengali", "Afrikaans", 
+                "Albanian", "Armenian", "Azerbaijani", "Basque", "Belarusian", "Bosnian", "Bulgarian", "Catalan", "Croatian", 
+                "Czech", "Danish", "Estonian", "Finnish", "Georgian", "Hebrew", "Hungarian", "Icelandic", "Indonesian", "Irish", 
+                "Latvian", "Lithuanian", "Macedonian", "Malagasy", "Maltese", "Mongolian", "Montenegrin", "Norwegian", 
+                "Pashto", "Persian", "Romanian", "Serbian", "Slovak", "Slovenian", "Somali", "Swahili", "Tajik", "Tatar", 
+                "Thai", "Tibetan", "Turkmen", "Ukrainian", "Uzbek", "Welsh", "Yoruba", "Zulu", "Amharic", "Chechen", 
+                "Chichewa", "Esperanto", "Fijian", "Fula", "Galician", "Hausa", "Hmong", "Igbo", "Inuktitut", "Javanese", 
+                "Kinyarwanda", "Kirundi", "Kurdish", "Lao", "Luganda", "Luxembourgish", "Maldivian", "Marshallese", "Nauru", 
+                "Navajo", "Oriya", "Palauan", "Quechua", "Samoan", "Sango", "Serer", "Shona", "Sotho", "Tagalog", "Tahitian", 
+                "Tigrinya", "Tonga", "Tswana", "Tuvaluan", "Wallisian", "Xhosa", "Akan", "Bambara", "Bashkir", "Bislama", 
+                "Chuvash", "Divehi", "Dzongkha", "Ewe", "Faroese", "Gaelic", "Greenlandic", "Haitian", "Herero", "Kashubian", 
+                "Kikuyu", "Lingala", "Lozi", "Makonde", "Mandingo", "Ndonga", "Nuosu", "Nyanja", "Nyamwezi", "Oromo", 
+                "Rohingya", "Saraiki", "Shan", "Silesian", "Sinhala", "Sorani", "Tsonga", "Wolof", "Zaza"
+            ))
+        with col2:
+            if st.button("🎤 Record Question"):
+                recorded_text = speech_to_text(language)
+                st.session_state.transcribed_text = recorded_text
+        # Display the transcribed text in an editable text box
+        user_question = st.text_input("Recorded Question (editable)", value=st.session_state.get("transcribed_text", ""))
+    else:
+        language = st.selectbox("Select Language", (
+            "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil", "Gujarati", "Marathi", 
+            "Punjabi", "Kannada", "Malayalam", "Odia", "Assamese", "Urdu", "Konkani", "Maithili", "Santali", "Sindhi", 
+            "Nepali", "Bodo", "Dogri", "Kashmiri", "Manipuri", "Sanskrit", "Japanese", "Korean", "Italian", "Portuguese", 
+            "Russian", "Arabic", "Dutch", "Greek", "Swedish", "Turkish", "Vietnamese", "Polish", "Bengali", "Afrikaans", 
+            "Albanian", "Armenian", "Azerbaijani", "Basque", "Belarusian", "Bosnian", "Bulgarian", "Catalan", "Croatian", 
+            "Czech", "Danish", "Estonian", "Finnish", "Georgian", "Hebrew", "Hungarian", "Icelandic", "Indonesian", "Irish", 
+            "Latvian", "Lithuanian", "Macedonian", "Malagasy", "Maltese", "Mongolian", "Montenegrin", "Norwegian", 
+            "Pashto", "Persian", "Romanian", "Serbian", "Slovak", "Slovenian", "Somali", "Swahili", "Tajik", "Tatar", 
+            "Thai", "Tibetan", "Turkmen", "Ukrainian", "Uzbek", "Welsh", "Yoruba", "Zulu", "Amharic", "Chechen", 
+            "Chichewa", "Esperanto", "Fijian", "Fula", "Galician", "Hausa", "Hmong", "Igbo", "Inuktitut", "Javanese", 
+            "Kinyarwanda", "Kirundi", "Kurdish", "Lao", "Luganda", "Luxembourgish", "Maldivian", "Marshallese", "Nauru", 
+            "Navajo", "Oriya", "Palauan", "Quechua", "Samoan", "Sango", "Serer", "Shona", "Sotho", "Tagalog", "Tahitian", 
+            "Tigrinya", "Tonga", "Tswana", "Tuvaluan", "Wallisian", "Xhosa", "Akan", "Bambara", "Bashkir", "Bislama", 
+            "Chuvash", "Divehi", "Dzongkha", "Ewe", "Faroese", "Gaelic", "Greenlandic", "Haitian", "Herero", "Kashubian", 
+            "Kikuyu", "Lingala", "Lozi", "Makonde", "Mandingo", "Ndonga", "Nuosu", "Nyanja", "Nyamwezi", "Oromo", 
+            "Rohingya", "Saraiki", "Shan", "Silesian", "Sinhala", "Sorani", "Tsonga", "Wolof", "Zaza"
+        ))
+        user_question = st.text_input("Ask a Question from the uploaded documents .. ✍️📝")
+    
+    audio_output = st.checkbox("🔊 Enable Audio Output")
+    
     if st.button("Submit Question"):
         if user_question:
             user_input(user_question, language)
-            st.write("---")
-
-    # Display conversation history
+            if audio_output and st.session_state.question_answer_history:
+                latest_answer = st.session_state.question_answer_history[-1]["answer"]
+                text_to_speech(latest_answer, language)
+    
+    st.markdown("---")
+    
     if st.session_state.question_answer_history:
         st.markdown('<h2 style="text-align: center; margin-bottom: 20px;">Conversation History📜</h2>', unsafe_allow_html=True)
         for pair in st.session_state.question_answer_history:
@@ -395,13 +437,11 @@ def main():
             </div>
             '''
             st.markdown(conversation_html, unsafe_allow_html=True)
-
-    # ------------------ Sidebar Layout ------------------
+    
     with st.sidebar:
         st.image("img/Robot.jpg")
         st.markdown("---")
         st.markdown('<div class="sidebar-section"><h3>📁 Documents Section</h3></div>', unsafe_allow_html=True)
-        # Uploader: Accept PDF and DOCX files
         uploaded_files = st.file_uploader("Upload your PDF or Word documents", accept_multiple_files=True, type=["pdf", "docx"])
         if st.button("Submit & Process Documents"):
             if uploaded_files:
@@ -421,7 +461,7 @@ def main():
                         st.error("No text could be extracted from the uploaded documents.")
             else:
                 st.error("Please upload at least one document.")
-
+    
         st.markdown("---")
         st.markdown('<div class="sidebar-section"><h3>🌐 URL Files Section</h3></div>', unsafe_allow_html=True)
         num_urls = st.number_input("How many URLs do you want to enter?", min_value=1, value=1, step=1)
@@ -442,12 +482,11 @@ def main():
                         st.error("No text could be extracted from the provided URLs.")
             else:
                 st.error("Please enter at least one valid URL.")
-
+    
         st.markdown("---")
         st.image("img/gkj.jpg")
         st.markdown('<a href="https://vnrvjiet.ac.in/" target="_blank">CREATED BY @ VNRJIET STUDENTS</a>', unsafe_allow_html=True)
-
-    # ------------------ Footer ------------------
+    
     with st.sidebar:
         st.markdown(
         """
