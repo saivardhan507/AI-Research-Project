@@ -7,14 +7,6 @@ st.set_page_config(
 )
 
 import os
-import os
-import streamlit as st
-import pytesseract
-
-if "tesseract" in st.secrets and "TESSERACT_PATH" in st.secrets["tesseract"]:
-    pytesseract.pytesseract.tesseract_cmd = st.secrets["tesseract"]["TESSERACT_PATH"]
-else:
-    pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 import shutil
 import time
 import requests
