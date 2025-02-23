@@ -14,9 +14,7 @@ import pytesseract
 if "tesseract" in st.secrets and "TESSERACT_PATH" in st.secrets["tesseract"]:
     pytesseract.pytesseract.tesseract_cmd = st.secrets["tesseract"]["TESSERACT_PATH"]
 else:
-    # Fallback to a default path; this may work locally if Tesseract is installed there
     pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
-
 import shutil
 import time
 import requests
