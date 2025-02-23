@@ -7,6 +7,8 @@ st.set_page_config(
 )
 
 import os
+if "tesseract" in st.secrets:
+    pytesseract.pytesseract.tesseract_cmd = st.secrets["tesseract"]["TESSERACT_PATH"]
 import shutil
 import time
 import requests
