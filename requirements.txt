@@ -1,4 +1,4 @@
-streamlit
+streamlit-audiorec
 streamlit-webrtc
 PyPDF2
 langchain
