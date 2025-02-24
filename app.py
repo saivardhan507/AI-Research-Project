@@ -1,10 +1,5 @@
 import streamlit as st
-st.set_page_config(
-    page_title="Personal AI Research Assistant",
-    page_icon=":scroll:",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+from st_audiorec import st_audiorec  # Correct import from the installed package
 
 import os
 import shutil
@@ -45,7 +40,6 @@ if "transcribed_text" not in st.session_state:
     st.session_state.transcribed_text = ""
 
 # ------------------ Helper Functions for Speech ------------------
-# Language mapping for speech recognition and TTS (add more if needed)
 language_map = {
     "English": "en",
     "Hindi": "hi",
@@ -63,7 +57,6 @@ def text_to_speech(text, language):
         audio_file = BytesIO()
         tts.write_to_fp(audio_file)
         audio_file.seek(0)
-        # Encode audio for HTML playback
         audio_base64 = base64.b64encode(audio_file.read()).decode()
         audio_html = f'''
             <audio controls autoplay style="width: 100%;">
@@ -354,21 +347,20 @@ def main():
         language = st.selectbox("Select Language", (
             "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil"
         ))
-        st.info("Click the button below to record your question. Your spoken words will be automatically transcribed.")
-        if st.button("Record & Transcribe"):
+        st.info("Record your question using the recorder below. Your spoken words will be automatically transcribed.")
+        audio_bytes = st_audiorec()  # Use the correct function from st_audiorec package
+        if audio_bytes is not None:
             try:
                 r = sr.Recognizer()
-                with sr.Microphone() as source:
-                    st.info("Recording... Please speak now.")
-                    audio_data = r.listen(source, timeout=5, phrase_time_limit=10)
-                    st.info("Transcribing...")
-                    transcribed_text = r.recognize_google(audio_data, language=language_map.get(language, "en-IN"))
-                    st.session_state.transcribed_text = transcribed_text
-                    st.success("Transcription complete.")
+                audio_file = BytesIO(audio_bytes)
+                with sr.AudioFile(audio_file) as source:
+                    audio_data = r.record(source)
+                transcribed_text = r.recognize_google(audio_data, language=language_map.get(language, "en-IN"))
+                st.session_state.transcribed_text = transcribed_text
+                st.success("Transcription complete.")
             except Exception as e:
-                st.error(f"Recording/Transcription error: {e}")
+                st.error(f"Transcription error: {e}")
         user_question = st.text_input("Recorded Question (editable)", value=st.session_state.get("transcribed_text", ""))
-    
     else:
         language = st.selectbox("Select Language", (
             "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil"
