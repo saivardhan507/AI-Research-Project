@@ -31,6 +31,9 @@ import speech_recognition as sr
 from gtts import gTTS
 import base64
 
+# Import the browser-based audio recorder component
+from st_audiorecorder import audiorecorder
+
 # ------------------ Environment Setup ------------------
 load_dotenv()
 if "TESSERACT_PATH" in os.environ:
@@ -56,26 +59,21 @@ language_map = {
     "French": "fr"
 }
 
-def speech_to_text(language):
-    """Captures speech input and returns transcribed text in the chosen language."""
+def speech_to_text_from_audio(audio_bytes, language):
+    """Converts recorded audio bytes to text using Google Speech Recognition."""
     r = sr.Recognizer()
-    with sr.Microphone() as source:
-        st.info("Speak now...")
-        try:
-            audio = r.listen(source, timeout=10)
-            lang_code = language_map.get(language, "en-IN")
-            # Attempt to use Google's free recognition service
-            text = r.recognize_google(audio, language=lang_code)
-            return text
-        except sr.WaitTimeoutError:
-            st.error("No speech detected. Please try again.")
-            return ""
-        except sr.RequestError as req_err:
-            st.error(f"Network error: Could not request results from Google Speech Recognition service; {req_err}")
-            return ""
-        except Exception as e:
-            st.error(f"Speech recognition error: {e}")
-            return ""
+    try:
+        with sr.AudioFile(BytesIO(audio_bytes)) as source:
+            audio = r.record(source)
+        lang_code = language_map.get(language, "en")
+        text = r.recognize_google(audio, language=lang_code)
+        return text
+    except sr.RequestError as req_err:
+        st.error(f"Network error: {req_err}")
+        return ""
+    except Exception as e:
+        st.error(f"Speech recognition error: {e}")
+        return ""
 
 def text_to_speech(text, language):
     """Converts text to audio and plays it in the browser."""
@@ -97,6 +95,7 @@ def text_to_speech(text, language):
         st.error(f"Text-to-speech failed: {e}")
 
 # ------------------ Helper Functions for Document & URL Processing ------------------
+# (The document and URL processing functions remain unchanged.)
 
 def extract_text_from_image(image):
     if shutil.which("tesseract") is None:
@@ -376,48 +375,21 @@ def main():
         col1, col2 = st.columns([3, 1])
         with col1:
             language = st.selectbox("Select Language", (
-                "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil", "Gujarati", "Marathi", 
-                "Punjabi", "Kannada", "Malayalam", "Odia", "Assamese", "Urdu", "Konkani", "Maithili", "Santali", "Sindhi", 
-                "Nepali", "Bodo", "Dogri", "Kashmiri", "Manipuri", "Sanskrit", "Japanese", "Korean", "Italian", "Portuguese", 
-                "Russian", "Arabic", "Dutch", "Greek", "Swedish", "Turkish", "Vietnamese", "Polish", "Bengali", "Afrikaans", 
-                "Albanian", "Armenian", "Azerbaijani", "Basque", "Belarusian", "Bosnian", "Bulgarian", "Catalan", "Croatian", 
-                "Czech", "Danish", "Estonian", "Finnish", "Georgian", "Hebrew", "Hungarian", "Icelandic", "Indonesian", "Irish", 
-                "Latvian", "Lithuanian", "Macedonian", "Malagasy", "Maltese", "Mongolian", "Montenegrin", "Norwegian", 
-                "Pashto", "Persian", "Romanian", "Serbian", "Slovak", "Slovenian", "Somali", "Swahili", "Tajik", "Tatar", 
-                "Thai", "Tibetan", "Turkmen", "Ukrainian", "Uzbek", "Welsh", "Yoruba", "Zulu", "Amharic", "Chechen", 
-                "Chichewa", "Esperanto", "Fijian", "Fula", "Galician", "Hausa", "Hmong", "Igbo", "Inuktitut", "Javanese", 
-                "Kinyarwanda", "Kirundi", "Kurdish", "Lao", "Luganda", "Luxembourgish", "Maldivian", "Marshallese", "Nauru", 
-                "Navajo", "Oriya", "Palauan", "Quechua", "Samoan", "Sango", "Serer", "Shona", "Sotho", "Tagalog", "Tahitian", 
-                "Tigrinya", "Tonga", "Tswana", "Tuvaluan", "Wallisian", "Xhosa", "Akan", "Bambara", "Bashkir", "Bislama", 
-                "Chuvash", "Divehi", "Dzongkha", "Ewe", "Faroese", "Gaelic", "Greenlandic", "Haitian", "Herero", "Kashubian", 
-                "Kikuyu", "Lingala", "Lozi", "Makonde", "Mandingo", "Ndonga", "Nuosu", "Nyanja", "Nyamwezi", "Oromo", 
-                "Rohingya", "Saraiki", "Shan", "Silesian", "Sinhala", "Sorani", "Tsonga", "Wolof", "Zaza"
+                "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil"
             ))
-        with col2:
-            if st.button("🎤 Record Question"):
-                # Use the speech_recognition based function
-                recorded_text = speech_to_text(language)
-                st.session_state.transcribed_text = recorded_text
+        # Use the browser-based audio recorder to record the question
+        audio_bytes = audiorecorder("Click to record your question", "Recording...")
+        if audio_bytes is not None:
+            # Play back the recorded audio
+            st.audio(audio_bytes, format="audio/wav")
+            # Convert the recorded audio to text
+            recorded_text = speech_to_text_from_audio(audio_bytes, language)
+            st.session_state.transcribed_text = recorded_text
         # Display the transcribed text in an editable text box
         user_question = st.text_input("Recorded Question (editable)", value=st.session_state.get("transcribed_text", ""))
     else:
         language = st.selectbox("Select Language", (
-            "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil", "Gujarati", "Marathi", 
-            "Punjabi", "Kannada", "Malayalam", "Odia", "Assamese", "Urdu", "Konkani", "Maithili", "Santali", "Sindhi", 
-            "Nepali", "Bodo", "Dogri", "Kashmiri", "Manipuri", "Sanskrit", "Japanese", "Korean", "Italian", "Portuguese", 
-            "Russian", "Arabic", "Dutch", "Greek", "Swedish", "Turkish", "Vietnamese", "Polish", "Bengali", "Afrikaans", 
-            "Albanian", "Armenian", "Azerbaijani", "Basque", "Belarusian", "Bosnian", "Bulgarian", "Catalan", "Croatian", 
-            "Czech", "Danish", "Estonian", "Finnish", "Georgian", "Hebrew", "Hungarian", "Icelandic", "Indonesian", "Irish", 
-            "Latvian", "Lithuanian", "Macedonian", "Malagasy", "Maltese", "Mongolian", "Montenegrin", "Norwegian", 
-            "Pashto", "Persian", "Romanian", "Serbian", "Slovak", "Slovenian", "Somali", "Swahili", "Tajik", "Tatar", 
-            "Thai", "Tibetan", "Turkmen", "Ukrainian", "Uzbek", "Welsh", "Yoruba", "Zulu", "Amharic", "Chechen", 
-            "Chichewa", "Esperanto", "Fijian", "Fula", "Galician", "Hausa", "Hmong", "Igbo", "Inuktitut", "Javanese", 
-            "Kinyarwanda", "Kirundi", "Kurdish", "Lao", "Luganda", "Luxembourgish", "Maldivian", "Marshallese", "Nauru", 
-            "Navajo", "Oriya", "Palauan", "Quechua", "Samoan", "Sango", "Serer", "Shona", "Sotho", "Tagalog", "Tahitian", 
-            "Tigrinya", "Tonga", "Tswana", "Tuvaluan", "Wallisian", "Xhosa", "Akan", "Bambara", "Bashkir", "Bislama", 
-            "Chuvash", "Divehi", "Dzongkha", "Ewe", "Faroese", "Gaelic", "Greenlandic", "Haitian", "Herero", "Kashubian", 
-            "Kikuyu", "Lingala", "Lozi", "Makonde", "Mandingo", "Ndonga", "Nuosu", "Nyanja", "Nyamwezi", "Oromo", 
-            "Rohingya", "Saraiki", "Shan", "Silesian", "Sinhala", "Sorani", "Tsonga", "Wolof", "Zaza"
+            "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil"
         ))
         user_question = st.text_input("Ask a Question from the uploaded documents .. ✍️📝")
     
