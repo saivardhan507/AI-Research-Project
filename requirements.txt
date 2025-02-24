@@ -19,3 +19,4 @@ selenium
 speechrecognition
 gTTS 
 bs4
+streamlit-audiorecorder
