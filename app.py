@@ -57,24 +57,28 @@ language_map = {
 }
 
 def speech_to_text(language):
-    """Captures speech input and returns transcribed text in original language"""
+    """Captures speech input and returns transcribed text in the chosen language."""
     r = sr.Recognizer()
     with sr.Microphone() as source:
         st.info("Speak now...")
         try:
             audio = r.listen(source, timeout=10)
             lang_code = language_map.get(language, "en-IN")
+            # Attempt to use Google's free recognition service
             text = r.recognize_google(audio, language=lang_code)
             return text
         except sr.WaitTimeoutError:
-            st.error("No speech detected")
+            st.error("No speech detected. Please try again.")
+            return ""
+        except sr.RequestError as req_err:
+            st.error(f"Network error: Could not request results from Google Speech Recognition service; {req_err}")
             return ""
         except Exception as e:
             st.error(f"Speech recognition error: {e}")
             return ""
 
 def text_to_speech(text, language):
-    """Converts text to audio and plays it in the browser"""
+    """Converts text to audio and plays it in the browser."""
     try:
         lang_code = language_map.get(language, "en")
         tts = gTTS(text=text, lang=lang_code, slow=False)
@@ -391,6 +395,7 @@ def main():
             ))
         with col2:
             if st.button("🎤 Record Question"):
+                # Use the speech_recognition based function
                 recorded_text = speech_to_text(language)
                 st.session_state.transcribed_text = recorded_text
         # Display the transcribed text in an editable text box
@@ -424,6 +429,8 @@ def main():
             if audio_output and st.session_state.question_answer_history:
                 latest_answer = st.session_state.question_answer_history[-1]["answer"]
                 text_to_speech(latest_answer, language)
+        else:
+            st.error("Please enter or record a question before submitting.")
     
     st.markdown("---")
     
