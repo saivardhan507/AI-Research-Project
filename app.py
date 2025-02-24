@@ -45,7 +45,6 @@ if "transcribed_text" not in st.session_state:
     st.session_state.transcribed_text = ""
 
 # ------------------ Helper Functions for Speech ------------------
-
 # Language mapping for speech recognition and TTS (add more if needed)
 language_map = {
     "English": "en",
@@ -56,25 +55,8 @@ language_map = {
     "French": "fr"
 }
 
-def speech_to_text(language):
-    """Captures speech input and returns transcribed text in original language"""
-    r = sr.Recognizer()
-    with sr.Microphone() as source:
-        st.info("Speak now...")
-        try:
-            audio = r.listen(source, timeout=10)
-            lang_code = language_map.get(language, "en-IN")
-            text = r.recognize_google(audio, language=lang_code)
-            return text
-        except sr.WaitTimeoutError:
-            st.error("No speech detected")
-            return ""
-        except Exception as e:
-            st.error(f"Speech recognition error: {e}")
-            return ""
-
 def text_to_speech(text, language):
-    """Converts text to audio and plays it in the browser"""
+    """Converts text to audio and plays it in the browser."""
     try:
         lang_code = language_map.get(language, "en")
         tts = gTTS(text=text, lang=lang_code, slow=False)
@@ -369,50 +351,27 @@ def main():
     input_mode = st.radio("Input Mode:", ["Type", "Speak"], horizontal=True)
     
     if input_mode == "Speak":
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            language = st.selectbox("Select Language", (
-                "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil", "Gujarati", "Marathi", 
-                "Punjabi", "Kannada", "Malayalam", "Odia", "Assamese", "Urdu", "Konkani", "Maithili", "Santali", "Sindhi", 
-                "Nepali", "Bodo", "Dogri", "Kashmiri", "Manipuri", "Sanskrit", "Japanese", "Korean", "Italian", "Portuguese", 
-                "Russian", "Arabic", "Dutch", "Greek", "Swedish", "Turkish", "Vietnamese", "Polish", "Bengali", "Afrikaans", 
-                "Albanian", "Armenian", "Azerbaijani", "Basque", "Belarusian", "Bosnian", "Bulgarian", "Catalan", "Croatian", 
-                "Czech", "Danish", "Estonian", "Finnish", "Georgian", "Hebrew", "Hungarian", "Icelandic", "Indonesian", "Irish", 
-                "Latvian", "Lithuanian", "Macedonian", "Malagasy", "Maltese", "Mongolian", "Montenegrin", "Norwegian", 
-                "Pashto", "Persian", "Romanian", "Serbian", "Slovak", "Slovenian", "Somali", "Swahili", "Tajik", "Tatar", 
-                "Thai", "Tibetan", "Turkmen", "Ukrainian", "Uzbek", "Welsh", "Yoruba", "Zulu", "Amharic", "Chechen", 
-                "Chichewa", "Esperanto", "Fijian", "Fula", "Galician", "Hausa", "Hmong", "Igbo", "Inuktitut", "Javanese", 
-                "Kinyarwanda", "Kirundi", "Kurdish", "Lao", "Luganda", "Luxembourgish", "Maldivian", "Marshallese", "Nauru", 
-                "Navajo", "Oriya", "Palauan", "Quechua", "Samoan", "Sango", "Serer", "Shona", "Sotho", "Tagalog", "Tahitian", 
-                "Tigrinya", "Tonga", "Tswana", "Tuvaluan", "Wallisian", "Xhosa", "Akan", "Bambara", "Bashkir", "Bislama", 
-                "Chuvash", "Divehi", "Dzongkha", "Ewe", "Faroese", "Gaelic", "Greenlandic", "Haitian", "Herero", "Kashubian", 
-                "Kikuyu", "Lingala", "Lozi", "Makonde", "Mandingo", "Ndonga", "Nuosu", "Nyanja", "Nyamwezi", "Oromo", 
-                "Rohingya", "Saraiki", "Shan", "Silesian", "Sinhala", "Sorani", "Tsonga", "Wolof", "Zaza"
-            ))
-        with col2:
-            if st.button("🎤 Record Question"):
-                recorded_text = speech_to_text(language)
-                st.session_state.transcribed_text = recorded_text
-        # Display the transcribed text in an editable text box
+        language = st.selectbox("Select Language", (
+            "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil"
+        ))
+        st.info("Click the button below to record your question. Your spoken words will be automatically transcribed.")
+        if st.button("Record & Transcribe"):
+            try:
+                r = sr.Recognizer()
+                with sr.Microphone() as source:
+                    st.info("Recording... Please speak now.")
+                    audio_data = r.listen(source, timeout=5, phrase_time_limit=10)
+                    st.info("Transcribing...")
+                    transcribed_text = r.recognize_google(audio_data, language=language_map.get(language, "en-IN"))
+                    st.session_state.transcribed_text = transcribed_text
+                    st.success("Transcription complete.")
+            except Exception as e:
+                st.error(f"Recording/Transcription error: {e}")
         user_question = st.text_input("Recorded Question (editable)", value=st.session_state.get("transcribed_text", ""))
+    
     else:
         language = st.selectbox("Select Language", (
-            "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil", "Gujarati", "Marathi", 
-            "Punjabi", "Kannada", "Malayalam", "Odia", "Assamese", "Urdu", "Konkani", "Maithili", "Santali", "Sindhi", 
-            "Nepali", "Bodo", "Dogri", "Kashmiri", "Manipuri", "Sanskrit", "Japanese", "Korean", "Italian", "Portuguese", 
-            "Russian", "Arabic", "Dutch", "Greek", "Swedish", "Turkish", "Vietnamese", "Polish", "Bengali", "Afrikaans", 
-            "Albanian", "Armenian", "Azerbaijani", "Basque", "Belarusian", "Bosnian", "Bulgarian", "Catalan", "Croatian", 
-            "Czech", "Danish", "Estonian", "Finnish", "Georgian", "Hebrew", "Hungarian", "Icelandic", "Indonesian", "Irish", 
-            "Latvian", "Lithuanian", "Macedonian", "Malagasy", "Maltese", "Mongolian", "Montenegrin", "Norwegian", 
-            "Pashto", "Persian", "Romanian", "Serbian", "Slovak", "Slovenian", "Somali", "Swahili", "Tajik", "Tatar", 
-            "Thai", "Tibetan", "Turkmen", "Ukrainian", "Uzbek", "Welsh", "Yoruba", "Zulu", "Amharic", "Chechen", 
-            "Chichewa", "Esperanto", "Fijian", "Fula", "Galician", "Hausa", "Hmong", "Igbo", "Inuktitut", "Javanese", 
-            "Kinyarwanda", "Kirundi", "Kurdish", "Lao", "Luganda", "Luxembourgish", "Maldivian", "Marshallese", "Nauru", 
-            "Navajo", "Oriya", "Palauan", "Quechua", "Samoan", "Sango", "Serer", "Shona", "Sotho", "Tagalog", "Tahitian", 
-            "Tigrinya", "Tonga", "Tswana", "Tuvaluan", "Wallisian", "Xhosa", "Akan", "Bambara", "Bashkir", "Bislama", 
-            "Chuvash", "Divehi", "Dzongkha", "Ewe", "Faroese", "Gaelic", "Greenlandic", "Haitian", "Herero", "Kashubian", 
-            "Kikuyu", "Lingala", "Lozi", "Makonde", "Mandingo", "Ndonga", "Nuosu", "Nyanja", "Nyamwezi", "Oromo", 
-            "Rohingya", "Saraiki", "Shan", "Silesian", "Sinhala", "Sorani", "Tsonga", "Wolof", "Zaza"
+            "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil"
         ))
         user_question = st.text_input("Ask a Question from the uploaded documents .. ✍️📝")
     
@@ -424,6 +383,8 @@ def main():
             if audio_output and st.session_state.question_answer_history:
                 latest_answer = st.session_state.question_answer_history[-1]["answer"]
                 text_to_speech(latest_answer, language)
+        else:
+            st.error("Please enter or record a question before submitting.")
     
     st.markdown("---")
     
