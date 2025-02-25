@@ -340,13 +340,31 @@ def main():
 
     st.markdown('<div class="header">📚 Personal AI Research Assistant 🤖</div>', unsafe_allow_html=True)
 
+    # Define the complete list of languages
+    all_languages = (
+        "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil", 
+        "Gujarati", "Marathi", "Punjabi", "Kannada", "Malayalam", "Odia", "Assamese", "Urdu", "Konkani", "Maithili", "Santali", "Sindhi", 
+        "Nepali", "Bodo", "Dogri", "Kashmiri", "Manipuri", "Sanskrit", "Japanese", "Korean", "Italian", "Portuguese", 
+        "Russian", "Arabic", "Dutch", "Greek", "Swedish", "Turkish", "Vietnamese", "Polish", "Bengali", "Afrikaans", 
+        "Albanian", "Armenian", "Azerbaijani", "Basque", "Belarusian", "Bosnian", "Bulgarian", "Catalan", "Croatian", 
+        "Czech", "Danish", "Estonian", "Finnish", "Georgian", "Hebrew", "Hungarian", "Icelandic", "Indonesian", "Irish", 
+        "Latvian", "Lithuanian", "Macedonian", "Malagasy", "Maltese", "Mongolian", "Montenegrin", "Norwegian", 
+        "Pashto", "Persian", "Romanian", "Serbian", "Slovak", "Slovenian", "Somali", "Swahili", "Tajik", "Tatar", 
+        "Thai", "Tibetan", "Turkmen", "Ukrainian", "Uzbek", "Welsh", "Yoruba", "Zulu", "Amharic", "Chechen", 
+        "Chichewa", "Esperanto", "Fijian", "Fula", "Galician", "Hausa", "Hmong", "Igbo", "Inuktitut", "Javanese", 
+        "Kinyarwanda", "Kirundi", "Kurdish", "Lao", "Luganda", "Luxembourgish", "Maldivian", "Marshallese", "Nauru", 
+        "Navajo", "Oriya", "Palauan", "Quechua", "Samoan", "Sango", "Serer", "Shona", "Sotho", "Tagalog", "Tahitian", 
+        "Tigrinya", "Tonga", "Tswana", "Tuvaluan", "Wallisian", "Xhosa", "Akan", "Bambara", "Bashkir", "Bislama", 
+        "Chuvash", "Divehi", "Dzongkha", "Ewe", "Faroese", "Gaelic", "Greenlandic", "Haitian", "Herero", "Kashubian", 
+        "Kikuyu", "Lingala", "Lozi", "Makonde", "Mandingo", "Ndonga", "Nuosu", "Nyanja", "Nyamwezi", "Oromo", 
+        "Rohingya", "Saraiki", "Shan", "Silesian", "Sinhala", "Sorani", "Tsonga", "Wolof", "Zaza"
+    )
+
     # Main Section: Input Mode Selection, Language, and Question Input
     input_mode = st.radio("Input Mode:", ["Type", "Speak"], horizontal=True)
     
     if input_mode == "Speak":
-        language = st.selectbox("Select Language", (
-            "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil"
-        ))
+        language = st.selectbox("Select Language", all_languages)
         st.info("Record your question using the recorder below. Your spoken words will be automatically transcribed.")
         audio_bytes = st_audiorec()  # Use the correct function from st_audiorec package
         if audio_bytes is not None:
@@ -362,9 +380,7 @@ def main():
                 st.error(f"Transcription error: {e}")
         user_question = st.text_input("Recorded Question (editable)", value=st.session_state.get("transcribed_text", ""))
     else:
-        language = st.selectbox("Select Language", (
-            "English", "Spanish", "French", "German", "Chinese", "Hindi", "Telugu", "Tamil"
-        ))
+        language = st.selectbox("Select Language", all_languages)
         user_question = st.text_input("Ask a Question from the uploaded documents .. ✍️📝")
     
     audio_output = st.checkbox("🔊 Enable Audio Output")
