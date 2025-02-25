@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 from st_audiorec import st_audiorec  # Correct import from the installed package
 import shutil
 st.write("Tesseract path:", shutil.which("tesseract"))
@@ -259,13 +259,13 @@ Your answer must:
     
     Answer:
     """
-    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
+    model = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.3)
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
     return chain
 
 def search_google(query, retries=5):
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-2.0-flash')
     for attempt in range(retries):
         try:
             response = model.generate_content(f"Give me a summary of : {query}")
@@ -279,7 +279,7 @@ def search_google(query, retries=5):
     return "Could not find information on Google."
 
 def translate_text(text, target_language):
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-2.0-flash')
     response = model.generate_content(f"Translate the following text to {target_language}:\n\n{text}")
     return response.text
 
