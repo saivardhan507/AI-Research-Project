@@ -1,5 +1,7 @@
 import streamlit as st
 from st_audiorec import st_audiorec  # Correct import from the installed package
+import shutil
+st.write("Tesseract path:", shutil.which("tesseract"))
 
 import os
 import shutil
