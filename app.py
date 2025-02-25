@@ -27,14 +27,20 @@ import speech_recognition as sr
 from gtts import gTTS
 import base64
 
+# ------------------ Set Poppler Path ------------------
+# If on Windows, use your local Poppler installation. Otherwise, assume Linux.
+if os.name == "nt":
+    poppler_path = r"C:\Users\sailo\OneDrive\Desktop\pdf-chat-main\poppler-24.08.0\Library\bin"
+else:
+    # On Streamlit Cloud (Linux), Poppler utilities are installed via packages.txt.
+    # You can set this to "/usr/bin" or leave it as None.
+    poppler_path = "/usr/bin"
+
 # ------------------ Environment Setup ------------------
 load_dotenv()
 if "TESSERACT_PATH" in os.environ:
     pytesseract.pytesseract.tesseract_cmd = os.environ["TESSERACT_PATH"]
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-
-# Set the Poppler path (for Windows) to your specific directory
-poppler_path = r"C:\Users\sailo\OneDrive\Desktop\pdf-chat-main\poppler-24.08.0\Library\bin"
 
 # Initialize conversation history in session_state if not present
 if "question_answer_history" not in st.session_state:
@@ -97,8 +103,10 @@ def get_pdf_text(pdf_docs):
                     text += page_text
                 else:
                     try:
-                        # Use the specified poppler_path
-                        images = convert_from_bytes(pdf_bytes, first_page=page_num+1, last_page=page_num+1, poppler_path=poppler_path)
+                        images = convert_from_bytes(pdf_bytes,
+                                                    first_page=page_num+1,
+                                                    last_page=page_num+1,
+                                                    poppler_path=poppler_path)
                         for image in images:
                             ocr_text = extract_text_from_image(image)
                             if ocr_text:
@@ -185,8 +193,10 @@ def get_url_text(urls):
                             text += page_text
                         else:
                             try:
-                                # Use the specified poppler_path here too
-                                images = convert_from_bytes(pdf_bytes, first_page=page_num+1, last_page=page_num+1, poppler_path=poppler_path)
+                                images = convert_from_bytes(pdf_bytes,
+                                                            first_page=page_num+1,
+                                                            last_page=page_num+1,
+                                                            poppler_path=poppler_path)
                                 for image in images:
                                     ocr_text = extract_text_from_image(image)
                                     if ocr_text:
