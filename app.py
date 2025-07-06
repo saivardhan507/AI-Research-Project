@@ -51,9 +51,9 @@ if "transcribed_text" not in st.session_state:
 
 # ------------------ Helper Functions for Speech ------------------
 language_map = {
+    "Telugu": "te", 
     "English": "en",
     "Hindi": "hi",
-    "Telugu": "te",
     "Tamil": "ta",
     "Spanish": "es",
     "French": "fr"
