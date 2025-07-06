@@ -470,13 +470,13 @@ def main():
     
         st.markdown("---")
         st.image("img/gkj.jpg")
-        st.markdown('<a href="https://vnrvjiet.ac.in/" target="_blank">CREATED BY @ VNRJIET STUDENTS</a>', unsafe_allow_html=True)
+        st.markdown('<a href="https://swecha.org/" target="_blank">Created by Eppa Sai Vardhan Reddy for Swecha AI internship project</a>', unsafe_allow_html=True)
     
     with st.sidebar:
         st.markdown(
         """
         <div style="position: fixed; bottom: 0; left: 0; width: 100%; background-color: #0E1117; padding: 15px; text-align: center;">
-             © <a href="https://wa.me/qr/FIEHCYZKAOBED1" target="_blank">For more info Connect Here </a> | Project Guide: Dr.V.Radhika
+             © <a href="https://wa.me/qr/FIEHCYZKAOBED1" target="_blank">For more info Connect Here </a> | Project Author: Eppa Sai Vardhan Reddy
         </div>
         """,
         unsafe_allow_html=True
